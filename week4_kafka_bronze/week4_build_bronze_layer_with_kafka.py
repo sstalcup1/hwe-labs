@@ -1,6 +1,6 @@
 import os
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, current_timestamp
+from pyspark.sql.functions import col, current_timestamp, split
 
 
 def getScramAuthString(username, password):
@@ -20,15 +20,15 @@ kafka_topic = "reviews"
 # Create a SparkSession
 spark = SparkSession.builder \
     .appName("Week4Lab") \
-    .config('spark.hadoop.fs.s3a.aws.credentials.provider', 'org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider') \
+    .config("spark.hadoop.fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider") \
     .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
     .config("spark.hadoop.fs.s3a.access.key", aws_access_key_id) \
     .config("spark.hadoop.fs.s3a.secret.key", aws_secret_access_key) \
-    .config('spark.jars.packages', 'org.apache.spark:spark-sql-kafka-0-10_2.12:3.1.3,org.apache.hadoop:hadoop-aws:3.2.0,com.amazonaws:aws-java-sdk-bundle:1.11.375') \
+    .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.1.3,org.apache.hadoop:hadoop-aws:3.2.0,com.amazonaws:aws-java-sdk-bundle:1.11.375") \
     .config("spark.sql.shuffle.partitions", "3") \
     .getOrCreate()
 
-#For Windows users, quiet errors about not being able to delete temporary directories which make your logs impossible to read...
+# For Windows users, quiet errors about not being able to delete temporary directories which make your logs impossible to read...
 logger = spark.sparkContext._jvm.org.apache.log4j
 logger.LogManager.getLogger("org.apache.spark.util.ShutdownHookManager"). setLevel( logger.Level.OFF )
 logger.LogManager.getLogger("org.apache.spark.SparkEnv"). setLevel( logger.Level.ERROR )
@@ -47,10 +47,36 @@ df = spark \
     .load()
 
 # Process the received data
-query = None
+query = df.withColumn("value", split("value", "\t")) \
+            .selectExpr("value[0] as  marketplace", 
+                        "value[1] as customer_id", 
+                        "value[2] as review_id",
+                        "value[3] as product_id",
+                        "value[4] as product_parent",
+                        "value[5] as product_title",
+                        "value[6] as product_category",
+                        "value[7] as star_rating",
+                        "value[8] as helpful_votes",
+                        "value[9] as total_votes",
+                        "value[10] as vine",
+                        "value[11] as verified_purchase",
+                        "value[12] as review_headline",
+                        "value[13] as review_body",
+                        "value[14] as purchase_date") \
+            .withColumn("review_timestamp", current_timestamp()) \
+            .writeStream \
+            .format("parquet") \
+            .option("path", "s3a://hwe-fall-2023/sstalcup/bronze/reviews") \
+            .option("checkpointLocation", "/tmp/kafka-checkpoint") \
+            .start()
 
 # Wait for the streaming query to finish
 query.awaitTermination()
+
+# Read written data
+# read_written_df = spark.read.parquet("s3a://hwe-fall-2023/sstalcup/bronze/reviews")
+# read_written_df.show(n=10)
+# read_written_df.printSchema()
 
 # Stop the SparkSession
 spark.stop()

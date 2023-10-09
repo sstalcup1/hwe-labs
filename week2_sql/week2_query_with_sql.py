@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import current_timestamp, regexp_replace
+from pyspark.sql.functions import current_timestamp
 
 ### Setup: Create a SparkSession
 spark = SparkSession.builder \
@@ -37,6 +37,11 @@ reviews.show(n=5, truncate=False)
 # Create new dataframe
 product_category = reviews.select("product_category")
 
+product_category_sql = spark.sql("SELECT \
+                                    product_category \
+                                 FROM \
+                                    review_view")
+
 # Look at first 50 rows
 #product_category.show(n=50) # I notice that every value is 'Digital_Video_Games'
 
@@ -45,8 +50,8 @@ product_category = reviews.select("product_category")
 result = spark.sql("WITH helpful_rank_cte AS ( \
                         SELECT \
                             product_title, \
-                            helpful_votes, \
-                            RANK() OVER (ORDER BY helpful_votes DESC) AS review_rank\
+                            CAST(helpful_votes AS INT), \
+                            RANK() OVER (ORDER BY CAST(helpful_votes AS INT) DESC) AS review_rank\
                         FROM \
                             review_view) \
                    SELECT \
@@ -56,7 +61,7 @@ result = spark.sql("WITH helpful_rank_cte AS ( \
                         helpful_rank_cte \
                    WHERE \
                         review_rank = 1")
-#result.show()
+result.show()
 
 # Question 8: How many reviews exist in the dataframe with a 5 star rating?
 result = spark.sql("SELECT \
@@ -99,7 +104,7 @@ result = spark.sql("WITH date_rank_cte AS ( \
 ##Question 11: Write the dataframe from Question 3 to your drive in JSON format.
 ##Feel free to pick any directory on your computer.
 ##Use overwrite mode.
-reviews.write.mode("overwrite").csv(r"C:\Users\scouts\Documents\HWE\lab-writes", header=True)
+#reviews.write.mode("overwrite").csv(r"C:\Users\scouts\Documents\HWE\lab-writes", header=True)
 
 ### Teardown
 # Stop the SparkSession
