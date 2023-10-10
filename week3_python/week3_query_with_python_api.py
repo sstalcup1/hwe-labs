@@ -55,7 +55,7 @@ product_category.show(n=50) # I notice that every value is 'Digital_Video_Games'
 
 #Question 6: Find the most helpful review in the dataframe - the one with the highest number of helpful votes.
 #What is the product title for that review? How many helpful votes did it have?
-most_helpful = reviews.select("product_title", "helpful_votes").orderBy(reviews["helpful_votes"].desc()).limit(1)
+most_helpful = reviews.select("product_title", "helpful_votes").orderBy(reviews["helpful_votes"].cast("integer").desc()).limit(1)
 most_helpful.show()
 
 #Question 7: How many reviews have a 5 star rating?
@@ -72,9 +72,8 @@ cast_df.show(n=10)
 
 #Question 8: Find the date with the most purchases.
 #Print the date and total count of the date with the most purchases
-purchase_sum = reviews.groupBy(reviews["purchase_date"]).count()
-most_purchases = purchase_sum.orderBy(purchase_sum["count"].desc()).limit(1)
-most_purchases.show()
+purchase_sum = reviews.groupBy(reviews["purchase_date"]).count().orderBy(("count"), ascending=False).limit(1)
+purchase_sum.show()
 
 #Question 9: Add a column to the dataframe named "review_timestamp", representing the current time on your computer. 
 #Hint: Check the documentation for a function that can help: https://spark.apache.org/docs/3.1.3/api/python/reference/pyspark.sql.html#functions
@@ -91,8 +90,8 @@ new_df.write.mode("overwrite").parquet("s3a://hwe-fall-2023/sstalcup/bronze/revi
 #Write to S3 under s3a://hwe-$CLASS/$HANDLE/bronze/customers
 #Make sure to write it using overwrite mode: append will keep appending duplicates, which will cause problems in later labs...
 #There are no questions to answer about this data set right now, but you will use it in a later lab...
-read_written_df = spark.read.parquet("s3a://hwe-fall-2023/sstalcup/bronze/reviews_static")
-read_written_df.show(n=10)
+read_customers_df = spark.read.csv("resources/customers.tsv.gz", sep="\t", header=True)
+read_customers_df.write.mode("overwrite").parquet("s3a://hwe-fall-2023/sstalcup/bronze/customers")
 
 # Stop the SparkSession
 spark.stop()
