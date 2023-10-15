@@ -16,7 +16,7 @@ topic = 'demo-topic-1'
 
 # Create Kafka consumer
 consumer = KafkaConsumer(topic,
-                         group_id='demo-group',
+                         group_id='scouts-group',
                          security_protocol="SASL_SSL",
                          sasl_mechanism="SCRAM-SHA-512", 
                          sasl_plain_username=username, 
