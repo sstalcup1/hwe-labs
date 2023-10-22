@@ -11,8 +11,6 @@ load_dotenv()
 aws_access_key_id = os.environ.get("AWS_ACCESS_KEY_ID")
 aws_secret_access_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
 
-kafka_topic = "reviews"
-
 # Create a SparkSession
 spark = SparkSession.builder \
     .appName("Week5Lab") \
@@ -30,38 +28,29 @@ logger = spark.sparkContext._jvm.org.apache.log4j
 logger.LogManager.getLogger("org.apache.spark.util.ShutdownHookManager"). setLevel( logger.Level.OFF )
 logger.LogManager.getLogger("org.apache.spark.SparkEnv"). setLevel( logger.Level.ERROR )
 
-bronze_schema = StructType(
-    StructField("marketplace", StringType, nullable=False)
-    ,StructField("customer_id", StringType, nullable=False)
-    ,StructField("review_id", StringType, nullable=False)
-    ,StructField("product_id", StringType, nullable=False)
-    ,StructField("product_parent", StringType, nullable=False)
-    ,StructField("product_title", StringType, nullable=False)
-    ,StructField("product_category", StringType, nullable=False)
-    ,StructField("star_rating", IntegerType, nullable=False)
-    ,StructField("helpful_votes", IntegerType, nullable=False)
-    ,StructField("total_votes", IntegerType, nullable=False)
-    ,StructField("vine", StringType, nullable=False)
-    ,StructField("verified_purchase", StringType, nullable=False)
-    ,StructField("review_headline", StringType, nullable=False)
-    ,StructField("review_body", StringType, nullable=False)
-    ,StructField("purchase_date", DateType, nullable=False)
-    ,StructField("review_timestamp", TimestampType, nullable=False)
-)
+bronze_schema = StructType([
+    StructField("marketplace", StringType(), nullable=False)
+    ,StructField("customer_id", StringType(), nullable=False)
+    ,StructField("review_id", StringType(), nullable=False)
+    ,StructField("product_id", StringType(), nullable=False)
+    ,StructField("product_parent", StringType(), nullable=False)
+    ,StructField("product_title", StringType(), nullable=False)
+    ,StructField("product_category", StringType(), nullable=False)
+    ,StructField("star_rating", IntegerType(), nullable=False)
+    ,StructField("helpful_votes", IntegerType(), nullable=False)
+    ,StructField("total_votes", IntegerType(), nullable=False)
+    ,StructField("vine", StringType(), nullable=False)
+    ,StructField("verified_purchase", StringType(), nullable=False)
+    ,StructField("review_headline", StringType(), nullable=False)
+    ,StructField("review_body", StringType(), nullable=False)
+    ,StructField("purchase_date", DateType(), nullable=False)
+    ,StructField("review_timestamp", TimestampType(), nullable=False)
+])
 
 # Define a streaming dataframe using readStream on top of the bronze reviews directory on S3
-bronze_reviews = spark \
-                .readStream \
-                .schema(bronze_schema) \
-                .format("parquet") \
-                .option("startingOffsets", "earliest") \
-                .option("maxOffsetsPerTrigger", "1000") \
-                .option("subscribe", kafka_topic) \
-                .option("s3a://hwe-fall-2023/sstalcup/bronze/reviews") \
-                .load
-
-# Register a virtual view on top of that dataframe
-bronze_reviews.createOrReplaceTempView("reviews")
+bronze_reviews = spark.readStream.schema(bronze_schema) \
+                .parquet("s3a://hwe-fall-2023/sstalcup/bronze/reviews") \
+                .createOrReplaceTempView("reviews")
 
 # Define a non-streaming dataframe using read on top of the bronze customers directory on S3
 bronze_customers = spark.read.parquet("s3a://hwe-fall-2023/sstalcup/bronze/customers")
@@ -87,10 +76,9 @@ silver_data = spark.sql("SELECT \
                             r.review_body, \
                             r.purchase_date, \
                             r.review_timestamp, \
-                            c.customer_id, \
                             c.customer_name, \
                             c.gender, \
-                            c.date_of_birth, \
+                            CAST(c.date_of_birth AS date) AS date_of_birth, \
                             c.city, \
                             c.state \
                         FROM \
@@ -99,15 +87,14 @@ silver_data = spark.sql("SELECT \
                             customers c \
                         ON \
                             r.customer_id = c.customer_id AND \
-                            c.verified_purchase = 'Y'")
+                            r.verified_purchase = 'Y'")
 
 
 streaming_query = silver_data \
                 .writeStream \
                 .format("parquet") \
                 .option("path", "s3a://hwe-fall-2023/sstalcup/silver/reviews") \
-                .option("checkpointLocation", "/tmp/kafka-checkpoint") \
-                .start()
+                .option("checkpointLocation", "/tmp/kafka-checkpoint-w5")
 
 streaming_query.start().awaitTermination()
 

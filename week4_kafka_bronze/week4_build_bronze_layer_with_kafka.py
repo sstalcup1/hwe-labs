@@ -65,8 +65,8 @@ query = df.withColumn("value", split("value", "\t")) \
                         "value[11] as verified_purchase",
                         "value[12] as review_headline",
                         "value[13] as review_body",
-                        "cast(value[14] as date) as purchase_date") \
-            .withColumn("review_timestamp", current_timestamp()) \
+                        "cast(value[14] as date) as purchase_date", 
+                        "current_timestamp() as review_timestamp") \
             .writeStream \
             .format("parquet") \
             .option("path", "s3a://hwe-fall-2023/sstalcup/bronze/reviews") \
