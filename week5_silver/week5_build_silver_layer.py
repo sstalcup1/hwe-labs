@@ -86,8 +86,8 @@ silver_data = spark.sql("SELECT \
                         INNER JOIN \
                             customers c \
                         ON \
-                            r.customer_id = c.customer_id AND \
-                            r.verified_purchase = 'Y'")
+                            r.customer_id = c.customer_id \
+                        WHERE r.verified_purchase = 'Y'")
 
 
 streaming_query = silver_data \
