@@ -67,7 +67,7 @@ watermarked_data = silver_data \
 
 #Define an aggregated dataframe using `groupBy` functionality to summarize that data over any dimensions you may find interesting
 aggregated_data = watermarked_data \
-                    .groupBy("review_timestamp", "product_category", "customer_name", "product_title") \
+                    .groupBy("review_timestamp", "review_id", "customer_id", "product_id", "star_rating", "helpful_votes", "total_votes", "purchase_date", "review_headline", "review_body", "verified_purchase", "vine", "marketplace") \
                     .agg(count("total_votes").alias("total"))
 
 #Write that aggregate data to S3 under s3a://hwe-$CLASS/$HANDLE/gold/fact_review using append mode and a checkpoint location of `/tmp/gold-checkpoint`

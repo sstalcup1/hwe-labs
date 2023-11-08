@@ -53,55 +53,44 @@ silver_schema = StructType([
 ])
 
 # Define a streaming dataframe using readStream on top of the bronze reviews directory on S3
-bronze_reviews = spark.readStream.schema(silver_schema) \
-                .parquet("s3a://hwe-fall-2023/sstalcup/bronze/reviews") \
-                .createOrReplaceTempView("reviews")
+silver_data = spark.read \
+                .schema(silver_schema) \
+                .parquet("s3a://hwe-fall-2023/sstalcup/silver/reviews") \
+                .createOrReplaceTempView("silver_data")
 
-# Define a non-streaming dataframe using read on top of the bronze customers directory on S3
-bronze_customers = spark.read.parquet("s3a://hwe-fall-2023/sstalcup/bronze/customers")
-
-# Register a virtual view on top of that dataframe
-bronze_customers.createOrReplaceTempView("customers")
-
-# Silver dataframe
-silver_data = spark.sql("SELECT \
-                            r.marketplace, \
-                            r.customer_id, \
-                            r.review_id, \
-                            r.product_id, \
-                            r.product_parent, \
-                            r.product_title, \
-                            r.product_category, \
-                            r.star_rating, \
-                            r.helpful_votes, \
-                            r.total_votes, \
-                            r.vine, \
-                            r.verified_purchase, \
-                            r.review_headline, \
-                            r.review_body, \
-                            r.purchase_date, \
-                            r.review_timestamp, \
-                            c.customer_name, \
-                            c.gender, \
-                            CAST(c.date_of_birth AS date) AS date_of_birth, \
-                            c.city, \
-                            c.state \
+# Product Dimension
+product_dim = spark.sql("SELECT DISTINCT\
+                            product_id, \
+                            product_parent, \
+                            product_title, \
+                            product_category \
                         FROM \
-                            reviews r \
-                        INNER JOIN \
-                            customers c \
-                        ON \
-                            r.customer_id = c.customer_id \
-                        WHERE r.verified_purchase = 'Y'")
+                            silver_data")
+#product_dim.write.mode("overwrite").parquet("s3a://hwe-fall-2023/sstalcup/gold/product_dim")
+
+# Customer Dimension
+customer_dim = spark.sql("SELECT DISTINCT \
+                            customer_id, \
+                            customer_name, \
+                            gender, \
+                            date_of_birth, \
+                            city, \
+                            state \
+                        FROM \
+                            silver_data")
+customer_dim.write.mode("overwrite").parquet("s3a://hwe-fall-2023/sstalcup/gold/customer_dim")
 
 
-streaming_query = silver_data \
-                .writeStream \
-                .format("parquet") \
-                .option("path", "s3a://hwe-fall-2023/sstalcup/silver/reviews") \
-                .option("checkpointLocation", "/tmp/kafka-checkpoint-w5")
-
-streaming_query.start().awaitTermination()
+# Date Dimension
+date_dim = spark.sql("SELECT DISTINCT\
+                            purchase_date, \
+                            YEAR(purchase_date) AS year, \
+                            MONTH(purchase_date) AS month, \
+                            DATE_FORMAT(purchase_date, 'MMMM') AS long_month, \
+                            CONCAT(MONTH(purchase_date), ' ', YEAR(purchase_date)) AS year_month \
+                        FROM \
+                            silver_data")
+date_dim.write.mode("overwrite").parquet("s3a://hwe-fall-2023/sstalcup/gold/date_dim")
 
 ## Stop the SparkSession
 spark.stop()
